@@ -56,6 +56,7 @@ void writeInLogFile(string log);
 void logIn(LPPER_IO_OPERATION_DATA perIoData, string &log, string data);
 void logOut(LPPER_IO_OPERATION_DATA perIoData, string &log);
 void postMessage(LPPER_IO_OPERATION_DATA perIoData, string &log, string data);
+void sendMessage(char *buff, SOCKET &connectedSocket);
 
 int main(int argc, char *argv[]) 
 {
@@ -181,6 +182,7 @@ unsigned __stdcall serverWorkerThread(LPVOID completionPortID)
 	LPPER_IO_OPERATION_DATA perIoData;
 	DWORD flags;
 	int myId;
+	char queue[DATA_BUFSIZE];
 
 	EnterCriticalSection(&criticalSection);
 	threadId = threadId + 1;
@@ -212,10 +214,24 @@ unsigned __stdcall serverWorkerThread(LPVOID completionPortID)
 		// this means a WSARecv call just completed so update the recvBytes field
 		// with the transferredBytes value from the completed WSARecv() call
 		if (perIoData->operation == RECEIVE) {
-			cout << perIoData->buffer << endl;
-			cout << "first: " << transferredBytes << endl;
-			communicateClient(perIoData);
-			cout << "buff " << perIoData->buffer << endl;
+			char rs[DATA_BUFSIZE];
+			ZeroMemory(&rs, sizeof(DATA_BUFSIZE));
+			strcpy(queue, perIoData->buffer);
+			while (strstr(queue, DELIMITER) != NULL)
+			{
+				string strQueue = string(queue);
+				string data = strQueue.substr(0, strQueue.find(DELIMITER));
+				strcpy(perIoData->buffer, data.c_str());
+				communicateClient(perIoData);
+				strcpy(queue, strstr(queue, DELIMITER) + strlen(DELIMITER));
+				if (strlen(queue) != 0) {
+					sendMessage(perIoData->buffer, perHandleData->socket);
+				}
+				else {
+					strcat(rs, perIoData->buffer);
+				}
+			}
+			strcpy(perIoData->buffer, rs);
 			perIoData->recvBytes = strlen(perIoData->buffer);
 			perIoData->sentBytes = 0;
 			perIoData->operation = SEND;
@@ -232,9 +248,6 @@ unsigned __stdcall serverWorkerThread(LPVOID completionPortID)
 			perIoData->dataBuff.buf = perIoData->buffer + perIoData->sentBytes;
 			perIoData->dataBuff.len = perIoData->recvBytes - perIoData->sentBytes;
 			perIoData->operation = SEND;
-			cout << "sendbytes " << perIoData->dataBuff.buf << endl;
-			cout << "recvbytes " << perIoData->dataBuff.len << endl;
-			cout << "transfer recv " << transferredBytes << endl;
 			if (WSASend(perHandleData->socket,
 				&(perIoData->dataBuff),
 				1,
@@ -247,8 +260,6 @@ unsigned __stdcall serverWorkerThread(LPVOID completionPortID)
 					return 0;
 				}
 			}
-			cout << "transfer send " << transferredBytes << endl;
-			cout << endl;
 		}
 		else {
 			// No more bytes to send post another WSARecv() request
@@ -259,8 +270,6 @@ unsigned __stdcall serverWorkerThread(LPVOID completionPortID)
 			perIoData->dataBuff.len = DATA_BUFSIZE;
 			perIoData->dataBuff.buf = perIoData->buffer;
 			ZeroMemory(&(perIoData->buffer), sizeof(OVERLAPPED));
-			cout << "buffer " << perIoData->buffer << endl;
-			cout << endl;
 			if (WSARecv(perHandleData->socket,
 				&(perIoData->dataBuff),
 				1,
@@ -427,4 +436,12 @@ void logOut(LPPER_IO_OPERATION_DATA perIoData, string &log) {
 	strcpy(perIoData->buffer, rs);
 	// Write in log file
 	writeInLogFile(log);
+}
+
+void sendMessage(char *buff, SOCKET &connectedSocket) {
+
+	int ret = send(connectedSocket, buff, strlen(buff), 0);
+	if (ret == SOCKET_ERROR) {
+		printf("Error %d: Can't send data.\n", WSAGetLastError());
+	}
 }
