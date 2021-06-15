@@ -20,6 +20,7 @@ using namespace std;
 #define SEND 1
 #define SERVER_ADDR "127.0.0.1"
 #define USER_LEN 200
+#define DELIMITER "\r\n"
 
 #pragma comment(lib, "Ws2_32.lib")
 
@@ -211,8 +212,11 @@ unsigned __stdcall serverWorkerThread(LPVOID completionPortID)
 		// this means a WSARecv call just completed so update the recvBytes field
 		// with the transferredBytes value from the completed WSARecv() call
 		if (perIoData->operation == RECEIVE) {
+			cout << perIoData->buffer << endl;
+			cout << "first: " << transferredBytes << endl;
 			communicateClient(perIoData);
-			perIoData->recvBytes = strlen(perIoData->dataBuff.buf);
+			cout << "buff " << perIoData->buffer << endl;
+			perIoData->recvBytes = strlen(perIoData->buffer);
 			perIoData->sentBytes = 0;
 			perIoData->operation = SEND;
 		}
@@ -228,7 +232,9 @@ unsigned __stdcall serverWorkerThread(LPVOID completionPortID)
 			perIoData->dataBuff.buf = perIoData->buffer + perIoData->sentBytes;
 			perIoData->dataBuff.len = perIoData->recvBytes - perIoData->sentBytes;
 			perIoData->operation = SEND;
-
+			cout << "sendbytes " << perIoData->dataBuff.buf << endl;
+			cout << "recvbytes " << perIoData->dataBuff.len << endl;
+			cout << "transfer recv " << transferredBytes << endl;
 			if (WSASend(perHandleData->socket,
 				&(perIoData->dataBuff),
 				1,
@@ -241,6 +247,8 @@ unsigned __stdcall serverWorkerThread(LPVOID completionPortID)
 					return 0;
 				}
 			}
+			cout << "transfer send " << transferredBytes << endl;
+			cout << endl;
 		}
 		else {
 			// No more bytes to send post another WSARecv() request
@@ -250,6 +258,9 @@ unsigned __stdcall serverWorkerThread(LPVOID completionPortID)
 			ZeroMemory(&(perIoData->overlapped), sizeof(OVERLAPPED));
 			perIoData->dataBuff.len = DATA_BUFSIZE;
 			perIoData->dataBuff.buf = perIoData->buffer;
+			ZeroMemory(&(perIoData->buffer), sizeof(OVERLAPPED));
+			cout << "buffer " << perIoData->buffer << endl;
+			cout << endl;
 			if (WSARecv(perHandleData->socket,
 				&(perIoData->dataBuff),
 				1,
@@ -290,7 +301,7 @@ void returnCurrentTime(string &log) {
 
 void handleProtocol(LPPER_IO_OPERATION_DATA perIoData, string &log) {
 
-	string str(perIoData->dataBuff.buf);
+	string str(perIoData->buffer);
 	// Write message to log variable
 	log += str + " $ ";
 	string key = str.substr(0, 4);
@@ -302,7 +313,7 @@ void handleProtocol(LPPER_IO_OPERATION_DATA perIoData, string &log) {
 		if (perIoData->isLogin) {
 			// check login
 			log += "401";
-			perIoData->dataBuff.buf = "401 you are logged in, Please log out first!";
+			strcpy(perIoData->buffer, "401 you are logged in, Please log out first!");
 			writeInLogFile(log);
 		}
 		else {
@@ -313,7 +324,7 @@ void handleProtocol(LPPER_IO_OPERATION_DATA perIoData, string &log) {
 		if (!perIoData->isLogin) {
 			// check login
 			log += "402";
-			perIoData->dataBuff.buf = "402 You are not log in";
+			strcpy(perIoData->buffer, "402 You are not log in");
 			writeInLogFile(log);
 		}
 		else {
@@ -325,7 +336,7 @@ void handleProtocol(LPPER_IO_OPERATION_DATA perIoData, string &log) {
 		if (perIoData->isLogin) {
 			// check login
 			log += "402";
-			perIoData->dataBuff.buf = "402 You are not log in";
+			strcpy(perIoData->buffer, "402 You are not log in");
 			writeInLogFile(log);
 		}
 		else {
@@ -334,7 +345,7 @@ void handleProtocol(LPPER_IO_OPERATION_DATA perIoData, string &log) {
 	}
 	else {
 		log += "403";
-		perIoData->dataBuff.buf = "403 Wrong protocol!";
+		strcpy(perIoData->buffer, "403 Wrong protocol!");
 		// Write in log file
 		writeInLogFile(log);
 	}
@@ -383,7 +394,7 @@ void logIn(LPPER_IO_OPERATION_DATA perIoData, string &log, string data) {
 		log += "406";
 	}
 
-	perIoData->dataBuff.buf = rs;
+	strcpy(perIoData->buffer, rs);
 	// Write in log file
 	writeInLogFile(log);
 	// close file "account.txt"
@@ -398,7 +409,7 @@ void postMessage(LPPER_IO_OPERATION_DATA perIoData, string &log, string data) {
 	strcat_s(rs, "200 Post sucessful!");
 	log += "200";
 
-	perIoData->dataBuff.buf = rs;
+	strcpy(perIoData->buffer, rs);
 	// Write in log file
 	writeInLogFile(log);
 }
@@ -413,7 +424,7 @@ void logOut(LPPER_IO_OPERATION_DATA perIoData, string &log) {
 	perIoData->isLogin = false;
 	memset(perIoData->username, 0, USER_LEN);
 
-	perIoData->dataBuff.buf = rs;
+	strcpy(perIoData->buffer, rs);
 	// Write in log file
 	writeInLogFile(log);
 }
