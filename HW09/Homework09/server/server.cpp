@@ -15,6 +15,7 @@
 
 using namespace std;
 
+#define PORT 6000
 #define DATA_BUFSIZE 8192
 #define RECEIVE 0
 #define SEND 1
@@ -60,12 +61,6 @@ void sendMessage(char *buff, SOCKET &connectedSocket);
 
 int main(int argc, char *argv[]) 
 {
-	if (argc < 2) {
-		printf("Enter error, please enter like this: server.exe 5500");
-		return 0;
-	}
-	char* serverPort = argv[1];
-
 	SOCKADDR_IN serverAddr;
 	SOCKET listenSock, acceptSock;
 	HANDLE completionPort;
@@ -107,7 +102,7 @@ int main(int argc, char *argv[])
 	}
 
 	serverAddr.sin_family = AF_INET;
-	serverAddr.sin_port = htons(atoi(serverPort));
+	serverAddr.sin_port = htons(PORT);
 	inet_pton(AF_INET, SERVER_ADDR, &serverAddr.sin_addr);
 	if (bind(listenSock, (PSOCKADDR)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
 		printf("bind() failed with error %d\n", WSAGetLastError());
@@ -119,6 +114,8 @@ int main(int argc, char *argv[])
 		printf("listen() failed with error %d\n", WSAGetLastError());
 		return 1;
 	}
+
+	printf("Server Started!");
 
 	InitializeCriticalSection(&criticalSection);
 	while (1) {
@@ -181,15 +178,8 @@ unsigned __stdcall serverWorkerThread(LPVOID completionPortID)
 	LPPER_HANDLE_DATA perHandleData;
 	LPPER_IO_OPERATION_DATA perIoData;
 	DWORD flags;
-	int myId;
+
 	char queue[DATA_BUFSIZE];
-
-	EnterCriticalSection(&criticalSection);
-	threadId = threadId + 1;
-	myId = threadId;
-	LeaveCriticalSection(&criticalSection);
-
-	printf("ThreadId %d started!\n", myId);
 
 	while (TRUE) {
 		if (GetQueuedCompletionStatus(completionPort, &transferredBytes,
@@ -217,6 +207,7 @@ unsigned __stdcall serverWorkerThread(LPVOID completionPortID)
 			char rs[DATA_BUFSIZE];
 			ZeroMemory(&rs, sizeof(DATA_BUFSIZE));
 			strcpy(queue, perIoData->buffer);
+			// Handle byte stream
 			while (strstr(queue, DELIMITER) != NULL)
 			{
 				string strQueue = string(queue);
@@ -285,6 +276,8 @@ unsigned __stdcall serverWorkerThread(LPVOID completionPortID)
 	}
 }
 
+// Communicate with client
+// @param perIoData - Pointer input data and info client
 void communicateClient(LPPER_IO_OPERATION_DATA perIoData) {
 	string log;
 	// write clientIp and clientPort to log variable 
@@ -296,6 +289,7 @@ void communicateClient(LPPER_IO_OPERATION_DATA perIoData) {
 	handleProtocol(perIoData, log);
 }
 
+// Return current time when user send message to server
 void returnCurrentTime(string &log) {
 	log += "[";
 	time_t current = time(0); // current time
@@ -308,6 +302,9 @@ void returnCurrentTime(string &log) {
 	log += to_string(ltm->tm_sec) + "]" + " $ "; // seconds
 }
 
+// Split protocol and message from client, handle protocol
+// @param perIoData - Pointer input data and info client
+// @param log - reference variable store the activity log 
 void handleProtocol(LPPER_IO_OPERATION_DATA perIoData, string &log) {
 
 	string str(perIoData->buffer);
@@ -371,6 +368,10 @@ void writeInLogFile(string log) {
 	LeaveCriticalSection(&criticalSection);
 }
 
+// Login function handle login request from client
+// @param perIoData - Pointer input data and info client
+// @param log - reference variable store the activity log 
+// @param data - message without protocol send by client
 void logIn(LPPER_IO_OPERATION_DATA perIoData, string &log, string data) {
 	char rs[DATA_BUFSIZE];
 	memset(rs, 0, DATA_BUFSIZE);
@@ -411,6 +412,10 @@ void logIn(LPPER_IO_OPERATION_DATA perIoData, string &log, string data) {
 	LeaveCriticalSection(&criticalSection);
 }
 
+// postMessage function handle post message request
+// @param perIoData - Pointer input data and info client
+// @param log - reference variable store the activity log 
+// @param data - message without protocol send by client
 void postMessage(LPPER_IO_OPERATION_DATA perIoData, string &log, string data) {
 	char rs[DATA_BUFSIZE];
 	memset(rs, 0, DATA_BUFSIZE);
@@ -423,6 +428,9 @@ void postMessage(LPPER_IO_OPERATION_DATA perIoData, string &log, string data) {
 	writeInLogFile(log);
 }
 
+// Handle Log Out Request
+// @param perIoData - Pointer input data and info client
+// @param log - reference variable store the activity log 
 void logOut(LPPER_IO_OPERATION_DATA perIoData, string &log) {
 	char rs[DATA_BUFSIZE];
 	memset(rs, 0, DATA_BUFSIZE);
@@ -438,6 +446,7 @@ void logOut(LPPER_IO_OPERATION_DATA perIoData, string &log) {
 	writeInLogFile(log);
 }
 
+// Send message
 void sendMessage(char *buff, SOCKET &connectedSocket) {
 
 	int ret = send(connectedSocket, buff, strlen(buff), 0);
