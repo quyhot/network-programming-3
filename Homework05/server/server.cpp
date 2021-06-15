@@ -193,7 +193,7 @@ void handleProtocol(char *buff, session *clientSession, string &log) {
 		else {
 			postMessage(data, clientSession, log);
 		}
-		
+
 	}
 	else if (key == "QUIT") {
 		if (!clientSession->isLogin) {
@@ -361,7 +361,7 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 	wcex.cbClsExtra = 0;
 	wcex.cbWndExtra = 0;
 	wcex.hInstance = hInstance;
-	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_SERVERHW5));
+	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_SERVER));
 	wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
 	wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 	wcex.lpszMenuName = NULL;
